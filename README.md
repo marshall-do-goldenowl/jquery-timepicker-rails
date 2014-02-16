@@ -29,9 +29,9 @@ Add the following stylesheet file to `app/assets/stylesheets/application.css`:
 
     *= require jquery.timepicker.css
 
-Optionally, you can also use `datepair.js`:
+Optionally, you can also use `jquery.datepair.js`:
 
-    //= require datepair.js
+    //= require jquery.datepair.js
 
 Most people will prefer to copy-paste this file in order to customize it.
 
