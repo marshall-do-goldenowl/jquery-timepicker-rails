@@ -1,4 +1,5 @@
 # jQuery timepicker for Rails
+[![Gem Version](https://badge.fury.io/rb/jquery-timepicker-rails.png)](http://badge.fury.io/rb/jquery-timepicker-rails)
 
 jquery-timepicker packaged for the Rails 3.1+ asset pipeline.
 Check [jquery-timepicker project home page](http://github.com/jonthornton/jquery-timepicker).
