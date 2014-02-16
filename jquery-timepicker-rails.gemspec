@@ -6,7 +6,7 @@ require 'jquery-timepicker-rails/version'
 Gem::Specification.new do |spec|
   spec.name          = "jquery-timepicker-rails"
   spec.version       = Jquery::Timepicker::Rails::VERSION
-  spec.authors       = ["Tanguy Krotoff (jQuery plugin by Jon Thornton)"]
+  spec.authors       = ["Tanguy Krotoff (jQuery plugin by Jon Thornton)", "Fabio Cantoni"]
   spec.email         = ["tkrotoff@gmail.com"]
   spec.description   = %q{A jQuery timepicker plugin inspired by Google Calendar}
   spec.summary       = %q{jquery-timepicker packaged for the Rails 3.1+ asset pipeline}
