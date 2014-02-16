@@ -1,226 +1,305 @@
-$(function() {
-	var DATEPICKER_FORMAT = 'yyyy-m-d';
-	var TIMEPICKER_FORMAT = 'g:ia';
-	var DATE_FORMAT = 'Y-n-j'; // for this format see http://php.net/manual/function.date.php
+/************************
+jquery-datepair v1.2.13
+http://jonthornton.github.com/jquery-datepair/
 
-	$('.datepair input.date').each(function(){
-		var $this = $(this);
+requires jQuery 1.7+
+************************/
 
-		$this.datepicker({
-			'format': DATEPICKER_FORMAT,
-			'autoclose': true
-		});
 
-		if ($this.hasClass('start') || $this.hasClass('end')) {
-			$this.on('changeDate change', doDatepair);
-		}
-
-	});
-
-	$('.datepair input.time').each(function() {
-		var $this = $(this);
-		
-		$this.timepicker({
-			'showDuration': true,
-			'timeFormat': TIMEPICKER_FORMAT,
-			'scrollDefaultNow': true
-		});
-
-		if ($this.hasClass('start') || $this.hasClass('end')) {
-			$this.on('changeTime change', doDatepair);
-		}
-		
-		if ($this.hasClass('end')) {
-			$this.on('focus', function(){$('.ui-timepicker-with-duration').scrollTop(0);});
-		}		
-
-	});
-
-	$('.datepair').each(initDatepair);
-
-	function initDatepair()
-	{
-		var container = $(this);
-
-		var startDateInput = container.find('input.start.date');
-		var endDateInput = container.find('input.end.date');
-		var dateDelta = 0;
-
-		if (startDateInput.length && endDateInput.length) {
-			var startDate = parseDate(startDateInput.val(), DATEPICKER_FORMAT);
-			var endDate =  parseDate(endDateInput.val(), DATEPICKER_FORMAT);
-
-			dateDelta = endDate.getTime() - startDate.getTime();
-			container.data('dateDelta', dateDelta);
-		}
-
-		var startTimeInput = container.find('input.start.time');
-		var endTimeInput = container.find('input.end.time');
-
-		if (startTimeInput.length && endTimeInput.length) {
-			var startInt = startTimeInput.timepicker('getSecondsFromMidnight');
-			var endInt = endTimeInput.timepicker('getSecondsFromMidnight');
-
-			container.data('timeDelta', endInt - startInt);
-
-			if (dateDelta < 86400000) {
-				endTimeInput.timepicker('option', 'minTime', startInt);
-			}
-		}
+(function (factory) {
+	if (typeof define === 'function' && define.amd) {
+		// AMD. Register as an anonymous module.
+		define(['jquery'], factory);
+	} else {
+		// Browser globals
+		factory(jQuery);
 	}
+}(function ($) {
+	var _ONE_DAY = 86400000;
+	var _defaults =	{
+		startClass: 'start',
+		endClass: 'end',
+		timeClass: 'time',
+		dateClass: 'date',
+		defaultDateDelta: 0,
+		defaultTimeDelta: 3600000,
+		parseTime: function($input){
+			return $input.timepicker('getTime');
+		},
+		updateTime: function($input, dateObj){
+			$input.timepicker('setTime', dateObj);
+		},
+		parseDate: function($input){
+			return $input.datepicker('getDate');
+		},
+		updateDate: function($input, dateObj){
+			$input.datepicker('update', dateObj);
+		},
+		setMinTime: function($input, dateObj){
+			$input.timepicker('option', 'minTime', dateObj);
+		}
+	};
 
-	function doDatepair()
+	var methods =
 	{
-		var target = $(this);
-		if (target.val() == '') {
-			return;
-		}
+		init: function(options)
+		{
+			return this.each(function()
+			{
+				var $self = $(this);
 
-		var container = target.closest('.datepair');
+				var settings = $.extend({}, _defaults);
 
-		if (target.hasClass('date')) {
-			updateDatePair(target, container);
-
-		} else if (target.hasClass('time')) {
-			updateTimePair(target, container);
-		}
-	}
-
-	function updateDatePair(target, container)
-	{
-		var start = container.find('input.start.date');
-		var end = container.find('input.end.date');
-		if (!start.length || !end.length) {
-			return;
-		}
-
-		var startDate = parseDate(start.val(), DATEPICKER_FORMAT);
-		var endDate =  parseDate(end.val(), DATEPICKER_FORMAT);
-
-		var oldDelta = container.data('dateDelta');
-
-		if (!isNaN(oldDelta) && oldDelta !== null && target.hasClass('start')) {
-			var newEnd = new Date(startDate.getTime()+oldDelta);
-			end.val(newEnd.format(DATE_FORMAT));
-			end.datepicker('update');
-			return;
-
-		} else {
-			var newDelta = endDate.getTime() - startDate.getTime();
-
-			if (newDelta < 0) {
-				newDelta = 0;
-
-				if (target.hasClass('start')) {
-					end.val(start.val());
-					end.datepicker('update');
-				} else if (target.hasClass('end')) {
-					start.val(end.val());
-					start.datepicker('update');
+				if (options) {
+					settings = $.extend(settings, options);
 				}
+
+				settings = _parseSettings(settings);
+
+				$self.data('datepair-settings', settings);
+				_bindChangeHandler($self);
+
+				// initialize datepair-datedelta
+				var $startDateInput = _getStartDateInput($self);
+				var $endDateInput = _getEndDateInput($self);
+
+				if ($startDateInput.val() && $endDateInput.val()) {
+					var startDate = settings.parseDate($startDateInput);
+					var endDate = settings.parseDate($endDateInput);
+					$self.data('datepair-datedelta', endDate.getTime() - startDate.getTime());
+				}
+
+				// initialize datepair-timedelta
+				var $startTimeInput = _getStartTimeInput($self);
+				var $endTimeInput = _getEndTimeInput($self);
+
+				if ($startTimeInput.val() && $endTimeInput.val()) {
+					var startTime = settings.parseTime($startTimeInput);
+					var endTime = settings.parseTime($endTimeInput);
+					$self.data('datepair-timedelta', endTime.getTime() - startTime.getTime());
+				}
+
+				_updateEndMintime($self);
+			});
+		},
+
+		option: function(key, value)
+		{
+			var self = this;
+			var settings = self.data('datepair-settings');
+
+			if (typeof key == 'object') {
+				settings = $.extend(settings, key);
+
+			} else if (typeof key == 'string' && typeof value != 'undefined') {
+				settings[key] = value;
+
+			} else if (typeof key == 'string') {
+				return settings[key];
 			}
 
-			if (newDelta < 86400000) {
-				var startTimeVal = container.find('input.start.time').val();
+			settings = _parseSettings(settings);
 
-				if (startTimeVal) {
-					container.find('input.end.time').timepicker('option', {'minTime': startTimeVal});
+			self.data('datepair-settings', settings);
+
+			return self;
+		},
+
+		remove: function()
+		{
+			var self = this;
+			self.removeData('datepair-settings');
+			self.off('.timepicker');
+		}
+	};
+
+	// private methods
+
+	function _parseSettings(settings)
+	{
+		// if (settings.startClass) {
+		// 	settings.minTime = _time2int(settings.minTime);
+		// }
+
+		return settings;
+	}
+
+	function _bindChangeHandler($self)
+	{
+		$self.on('change.datepair', null, _inputChanged);
+	}
+
+	function _unbindChangeHandler($self)
+	{
+		$self.off('change.datepair');
+	}
+
+	function _inputChanged(e)
+	{
+		var $self = $(this);
+
+		// temporarily unbind the change handler to prevent triggering this
+		// if we update other inputs
+		_unbindChangeHandler($self);
+
+		var settings = $self.data('datepair-settings');
+		var $target = $(e.target);
+
+		if ($target.val() != '') {
+			if ($target.hasClass(settings.dateClass)) {
+				_dateChanged($self, $target);
+
+			} else if ($target.hasClass(settings.timeClass)) {
+				_timeChanged($self, $target);
+			}
+		}
+
+		_bindChangeHandler($self);
+	}
+
+	function _getStartDateInput($self)
+	{
+		var settings = $self.data('datepair-settings');
+		return $self.find('.'+settings.startClass+'.'+settings.dateClass);
+	}
+
+	function _getEndDateInput($self)
+	{
+		var settings = $self.data('datepair-settings');
+		return $self.find('.'+settings.endClass+'.'+settings.dateClass);
+	}
+
+	function _getStartTimeInput($self)
+	{
+		var settings = $self.data('datepair-settings');
+		return $self.find('.'+settings.startClass+'.'+settings.timeClass);
+	}
+
+	function _getEndTimeInput($self)
+	{
+		var settings = $self.data('datepair-settings');
+		return $self.find('.'+settings.endClass+'.'+settings.timeClass);
+	}
+
+	function _dateChanged($self, $target)
+	{
+		var settings = $self.data('datepair-settings');
+
+		var $startDateInput = _getStartDateInput($self);
+		var $endDateInput = _getEndDateInput($self);
+
+		if (!$startDateInput.val() || !$endDateInput.val()) {
+			if (settings.defaultDateDelta !== null) {
+				if ($startDateInput.val()) {
+					var startDate = settings.parseDate($startDateInput);
+					var newEnd = new Date(startDate.getTime() + settings.defaultDateDelta * _ONE_DAY);
+					settings.updateDate($endDateInput, newEnd);
+				} else if ($endDateInput.val()) {
+					var endDate = settings.parseDate($endDateInput);
+					var newStart = new Date(endDate.getTime() + settings.defaultDateDelta * _ONE_DAY);
+					settings.updateDate($startDateInput, newStart);
 				}
+
+				$self.data('datepair-datedelta', settings.defaultDateDelta * _ONE_DAY);
 			} else {
-				container.find('input.end.time').timepicker('option', {'minTime': null});
+				$self.data('datepair-datedelta', null);
 			}
 
-			container.data('dateDelta', newDelta);
+			_updateEndMintime($self);
+			return;
 		}
+
+		var startDate = settings.parseDate($startDateInput);
+		var endDate = settings.parseDate($endDateInput);
+
+		if ($target.hasClass(settings.startClass)) {
+			var newEndDate = new Date(startDate.getTime()+$self.data('datepair-datedelta'));
+			settings.updateDate($endDateInput, newEndDate);
+		} else if ($target.hasClass(settings.endClass)) {
+			if (endDate < startDate) {
+				$self.data('datepair-datedelta', 0);
+				settings.updateDate($startDateInput, endDate);
+			} else {
+				$self.data('datepair-datedelta', endDate.getTime() - startDate.getTime());
+			}
+		}
+
+		_updateEndMintime($self);
 	}
 
-	function updateTimePair(target, container)
+	function _updateEndMintime($self)
 	{
-		var start = container.find('input.start.time');
-		var end = container.find('input.end.time');
+		var settings = $self.data('datepair-settings');
+		if (typeof settings.setMinTime != 'function') return;
 
-		if (!start.length) {
-			return;
+		var startTime;
+		if ($self.data('datepair-datedelta') <= _ONE_DAY || !$self.data('datepair-datedelta')) {
+			var $startTimeInput = _getStartTimeInput($self);
+			var startTime = settings.parseTime($startTimeInput);
 		}
 
-		var startInt = start.timepicker('getSecondsFromMidnight');
-		var dateDelta = container.data('dateDelta');
-
-		if (target.hasClass('start') && (!dateDelta || dateDelta < 86400000)) {
-			end.timepicker('option', 'minTime', startInt);
-		}
-
-		if (!end.length) {
-			return;
-		}
-
-		var endInt = end.timepicker('getSecondsFromMidnight');
-		var oldDelta = container.data('timeDelta');
-
-		var endDateAdvance = 0;
-		var newDelta;
-
-		if (oldDelta && target.hasClass('start')) {
-			// lock the duration and advance the end time
-
-			var newEnd = (startInt+oldDelta)%86400;
-
-			if (newEnd < 0) {
-				newEnd += 86400;
-			}
-
-			end.timepicker('setTime', newEnd);
-			newDelta = newEnd - startInt;
-		} else if (startInt !== null && endInt !== null) {
-			newDelta = endInt - startInt;
-		} else {
-			return;
-		}
-
-		container.data('timeDelta', newDelta);
-
-		if (newDelta < 0 && (!oldDelta || oldDelta > 0)) {
-			// overnight time span. advance the end date 1 day
-			endDateAdvance = 86400000;
-
-		} else if (newDelta > 0 && oldDelta < 0) {
-			// switching from overnight to same-day time span. decrease the end date 1 day
-			endDateAdvance = -86400000;
-		}
-
-		var startInput = container.find('.start.date');
-		var endInput = container.find('.end.date');
-
-		if (startInput.val() && !endInput.val()) {
-			endInput.val(startInput.val());
-			endInput.datepicker('update');
-			dateDelta = 0;
-			container.data('dateDelta', 0);
-		}
-
-		if (endDateAdvance != 0) {
-			if (dateDelta || dateDelta === 0) {
-				var endDate =  parseDate(endInput.val(), DATEPICKER_FORMAT);
-				var newEnd = new Date(endDate.getTime() + endDateAdvance);
-				endInput.val(newEnd.format(DATE_FORMAT));
-				endInput.datepicker('update');
-				container.data('dateDelta', dateDelta + endDateAdvance);
-			}
-		}
+		var $endTimeInput = _getEndTimeInput($self);
+		settings.setMinTime($endTimeInput, startTime);
 	}
-});
 
-function parseDate(input, format) {
-	if (input == '')
-		return new Date('');
+	function _timeChanged($self, $target)
+	{
+		var settings = $self.data('datepair-settings');
 
-	format = format || 'yyyy-mm-dd'; // default format
-	var parts = input.match(/(\d+)/g), i = 0, fmt = {};
-	// extract date-part indexes from the format
-	format.replace(/(yyyy|dd?|mm?)/g, function(part) { fmt[part] = i++; });
+		var $startTimeInput = _getStartTimeInput($self);
+		var $endTimeInput = _getEndTimeInput($self);
 
-	return new Date(parts[fmt['yyyy']], parts[fmt['mm'] == undefined ? fmt['m'] : fmt['mm']]-1, parts[fmt['dd'] == undefined ? fmt['d'] : fmt['dd']]);
-}
+		if (!$startTimeInput.val() || !$endTimeInput.val()) {
+			if (settings.defaultTimeDelta !== null) {
+				if ($startTimeInput.val()) {
+					var startTime = settings.parseTime($startTimeInput);
+					var newEnd = new Date(startTime.getTime() + settings.defaultTimeDelta);
+					settings.updateTime($endTimeInput, newEnd);
+				} else if ($endTimeInput.val()) {
+					var endTime = settings.parseTime($endTimeInput);
+					var newStart = new Date(endDate.getTime() + settings.defaultTimeDelta);
+					settings.updateTime($startTimeInput, newStart);
+				}
 
-// Simulates PHP's date function
-Date.prototype.format=function(format){var returnStr='';var replace=Date.replaceChars;for(var i=0;i<format.length;i++){var curChar=format.charAt(i);if(replace[curChar]){returnStr+=replace[curChar].call(this);}else{returnStr+=curChar;}}return returnStr;};Date.replaceChars={shortMonths:['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],longMonths:['January','February','March','April','May','June','July','August','September','October','November','December'],shortDays:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'],longDays:['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'],d:function(){return(this.getDate()<10?'0':'')+this.getDate();},D:function(){return Date.replaceChars.shortDays[this.getDay()];},j:function(){return this.getDate();},l:function(){return Date.replaceChars.longDays[this.getDay()];},N:function(){return this.getDay()+1;},S:function(){return(this.getDate()%10==1&&this.getDate()!=11?'st':(this.getDate()%10==2&&this.getDate()!=12?'nd':(this.getDate()%10==3&&this.getDate()!=13?'rd':'th')));},w:function(){return this.getDay();},z:function(){return"Not Yet Supported";},W:function(){return"Not Yet Supported";},F:function(){return Date.replaceChars.longMonths[this.getMonth()];},m:function(){return(this.getMonth()<9?'0':'')+(this.getMonth()+1);},M:function(){return Date.replaceChars.shortMonths[this.getMonth()];},n:function(){return this.getMonth()+1;},t:function(){return"Not Yet Supported";},L:function(){return(((this.getFullYear()%4==0)&&(this.getFullYear()%100!=0))||(this.getFullYear()%400==0))?'1':'0';},o:function(){return"Not Supported";},Y:function(){return this.getFullYear();},y:function(){return(''+this.getFullYear()).substr(2);},a:function(){return this.getHours()<12?'am':'pm';},A:function(){return this.getHours()<12?'AM':'PM';},B:function(){return"Not Yet Supported";},g:function(){return this.getHours()%12||12;},G:function(){return this.getHours();},h:function(){return((this.getHours()%12||12)<10?'0':'')+(this.getHours()%12||12);},H:function(){return(this.getHours()<10?'0':'')+this.getHours();},i:function(){return(this.getMinutes()<10?'0':'')+this.getMinutes();},s:function(){return(this.getSeconds()<10?'0':'')+this.getSeconds();},e:function(){return"Not Yet Supported";},I:function(){return"Not Supported";},O:function(){return(-this.getTimezoneOffset()<0?'-':'+')+(Math.abs(this.getTimezoneOffset()/60)<10?'0':'')+(Math.abs(this.getTimezoneOffset()/60))+'00';},P:function(){return(-this.getTimezoneOffset()<0?'-':'+')+(Math.abs(this.getTimezoneOffset()/60)<10?'0':'')+(Math.abs(this.getTimezoneOffset()/60))+':'+(Math.abs(this.getTimezoneOffset()%60)<10?'0':'')+(Math.abs(this.getTimezoneOffset()%60));},T:function(){var m=this.getMonth();this.setMonth(0);var result=this.toTimeString().replace(/^.+ \(?([^\)]+)\)?$/,'$1');this.setMonth(m);return result;},Z:function(){return-this.getTimezoneOffset()*60;},c:function(){return this.format("Y-m-d")+"T"+this.format("H:i:sP");},r:function(){return this.toString();},U:function(){return this.getTime()/1000;}};
+				$self.data('datepair-timedelta', settings.defaultTimeDelta);
+			} else {
+				$self.data('datepair-timedelta', null);
+			}
+
+			_updateEndMintime($self);
+			return;
+		}
+
+		var startTime = settings.parseTime($startTimeInput);
+		var endTime = settings.parseTime($endTimeInput);
+
+		if ($target.hasClass(settings.startClass)) {
+			var newEndTime = new Date(startTime.getTime()+$self.data('datepair-timedelta'));
+			settings.updateTime($endTimeInput, newEndTime);
+			endTime = settings.parseTime($endTimeInput);
+		}
+
+		if ((endTime.getTime() - startTime.getTime()) * $self.data('datepair-timedelta') < 0) {
+			var $endDateInput = _getEndDateInput($self);
+			var endDate = settings.parseDate($endDateInput);
+			var offset = (endTime < startTime) ? _ONE_DAY : -1 * _ONE_DAY;
+
+			settings.updateDate($endDateInput, new Date(endDate.getTime() + offset));
+			var newDelta = $self.data('datepair-timedelta') + offset;
+			$self.data('datepair-timedelta', newDelta);
+		}
+
+		$self.data('datepair-timedelta', endTime.getTime() - startTime.getTime());
+
+		_updateEndMintime($self);
+	}
+
+
+	// Plugin entry
+	$.fn.datepair = function(method)
+	{
+		if(methods[method]) { return methods[method].apply(this, Array.prototype.slice.call(arguments, 1)); }
+		else if(typeof method === "object" || !method) { return methods.init.apply(this, arguments); }
+		else { $.error("Method "+ method + " does not exist on jQuery.datepair"); }
+	};
+}));
