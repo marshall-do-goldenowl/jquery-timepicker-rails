@@ -10,7 +10,7 @@ Gem::Specification.new do |spec|
   spec.email         = ["tkrotoff@gmail.com"]
   spec.description   = %q{A jQuery timepicker plugin inspired by Google Calendar}
   spec.summary       = %q{jquery-timepicker packaged for the Rails 3.1+ asset pipeline}
-  spec.homepage      = "http://github.com/tkrotoff/jquery-timepicker-rails"
+  spec.homepage      = "https://github.com/cover/jquery-timepicker-rails"
   spec.license       = "MIT"
 
   spec.files         = `git ls-files`.split($/)
