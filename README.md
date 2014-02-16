@@ -39,4 +39,4 @@ jquery-timepicker depends on jQuery and [bootstrap-datepicker](http://github.com
 
 jquery-timepicker is being developed by [Jon Thornton](http://jonthornton.com/) and is under [MIT license](http://en.wikipedia.org/wiki/MIT_License).
 
-This gem is also licensed under [MIT license](https://raw.github.com/tkrotoff/jquery-timepicker-rails/master/LICENSE).
+This gem is also licensed under [MIT license](https://raw.github.com/tkrotoff/jquery-timepicker-rails/master/LICENSE.txt).
