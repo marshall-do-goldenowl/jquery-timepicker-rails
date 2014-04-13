@@ -1,5 +1,5 @@
 /************************
-jquery-timepicker v1.3.5
+jquery-timepicker v1.3.6
 http://jonthornton.github.com/jquery-timepicker/
 
 requires jQuery 1.7+
@@ -31,12 +31,17 @@ requires jQuery 1.7+
 		disableTouchKeyboard: false,
 		forceRoundTime: false,
 		appendTo: 'body',
+		orientation: 'ltr',
 		disableTimeRanges: [],
 		closeOnWindowScroll: false,
 		typeaheadHighlight: true,
 		noneOption: false
 	};
 	var _lang = {
+		am: 'am',
+		pm: 'pm',
+		AM: 'AM',
+		PM: 'PM',
 		decimal: '.',
 		mins: 'mins',
 		hr: 'hr',
@@ -53,7 +58,7 @@ requires jQuery 1.7+
 
 				// pick up settings from data attributes
 				var attributeOptions = [];
-				for (key in _defaults) {
+				for (var key in _defaults) {
 					if (self.data(key))  {
 						attributeOptions[key] = self.data(key);
 					}
@@ -122,21 +127,27 @@ requires jQuery 1.7+
 			// make sure other pickers are hidden
 			methods.hide();
 
+			// position the dropdown relative to the input
 			list.show();
+			var listOffset = {};
+
+			if (settings.orientation == 'rtl') {
+				// right-align the dropdown
+				listOffset.left = self.offset().left + self.outerWidth() - list.outerWidth() + parseInt(list.css('marginLeft').replace('px', ''), 10);
+			} else {
+				// left-align the dropdown
+				listOffset.left = self.offset().left + parseInt(list.css('marginLeft').replace('px', ''), 10);
+			}
 
 			if ((self.offset().top + self.outerHeight(true) + list.outerHeight()) > $(window).height() + $(window).scrollTop()) {
 				// position the dropdown on top
-				list.offset({
-					'left': self.offset().left + parseInt(list.css('marginLeft').replace('px', ''), 10),
-					'top': self.offset().top - list.outerHeight() + parseInt(list.css('marginTop').replace('px', ''), 10)
-				});
+				listOffset.top = self.offset().top - list.outerHeight() + parseInt(list.css('marginTop').replace('px', ''), 10);
 			} else {
 				// put it under the input
-				list.offset({
-					'left':self.offset().left + parseInt(list.css('marginLeft').replace('px', ''), 10),
-					'top': self.offset().top + self.outerHeight() + parseInt(list.css('marginTop').replace('px', ''), 10)
-				});
+				listOffset.top = self.offset().top + self.outerHeight() + parseInt(list.css('marginTop').replace('px', ''), 10);
 			}
+
+			list.offset(listOffset);
 
 			// position scrolling
 			var selected = list.find('.ui-timepicker-selected');
@@ -623,9 +634,8 @@ requires jQuery 1.7+
 		}
 
 		var self = $(this);
-		var list = self.data('timepicker-list');
 
-		if (list && list.is(':visible')) {
+		if (self.is(':focus')) {
 			return;
 		}
 
@@ -930,11 +940,11 @@ requires jQuery 1.7+
 			switch (code) {
 
 				case 'a':
-					output += (time.getHours() > 11) ? 'pm' : 'am';
+					output += (time.getHours() > 11) ? _lang.pm : _lang.am;
 					break;
 
 				case 'A':
-					output += (time.getHours() > 11) ? 'PM' : 'AM';
+					output += (time.getHours() > 11) ? _lang.PM : _lang.AM;
 					break;
 
 				case 'g':
