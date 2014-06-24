@@ -1,5 +1,5 @@
 /************************
-jquery-timepicker v1.3.8
+jquery-timepicker v1.3.9
 http://jonthornton.github.com/jquery-timepicker/
 
 requires jQuery 1.7+
@@ -288,6 +288,7 @@ requires jQuery 1.7+
 				return;
 			}
 
+			var settings = self.data('timepicker-settings');
 			self.removeAttr('autocomplete', 'off');
 			self.removeClass('ui-timepicker-input');
 			self.removeData('timepicker-settings');
@@ -296,6 +297,10 @@ requires jQuery 1.7+
 			// timepicker-list won't be present unless the user has interacted with this timepicker
 			if (self.data('timepicker-list')) {
 				self.data('timepicker-list').remove();
+			}
+
+			if (settings.useSelect) {
+				self.show();
 			}
 
 			self.removeData('timepicker-list');
@@ -376,8 +381,10 @@ requires jQuery 1.7+
 
 			if ($.isArray(settings.noneOption)) {
 				for (var i in settings.noneOption) {
-					var noneElement = _generateNoneElement(settings.noneOption[i], settings.useSelect);
-					list.append(noneElement);
+					if (parseInt(i, 10) === i){
+						var noneElement = _generateNoneElement(settings.noneOption[i], settings.useSelect);
+						list.append(noneElement);
+					}
 				}
 			} else {
 				var noneElement = _generateNoneElement(settings.noneOption, settings.useSelect);
