@@ -1,337 +1,304 @@
-/************************
-jquery-datepair v1.2.13
-http://jonthornton.github.com/jquery-datepair/
+/*!
+ * datepair.js v0.2.1 - A javascript plugin for intelligently selecting date and time ranges inspired by Google Calendar.
+ * Copyright (c) 2014 Jon Thornton - http://jonthornton.github.com/Datepair.js
+ * License: MIT
+ */
 
-requires jQuery 1.7+
-************************/
+(function(window, document) {
 
+    'use strict';
 
-(function (factory) {
-	if (typeof define === 'function' && define.amd) {
-		// AMD. Register as an anonymous module.
-		define(['jquery'], factory);
-	} else {
-		// Browser globals
-		factory(jQuery);
+    var _ONE_DAY = 86400000;
+    var jq = window.Zepto || window.jQuery
+    
+    function simpleExtend(obj1, obj2) {
+    	var out = obj2 || {};
+    
+    	for (var i in obj1) {
+    		if (!(i in out)) {
+    			out[i] = obj1[i]
+    		}
+    	}
+    
+    	return out;
+    }
+    
+    // IE's custom event support is totally borked.
+    // Use jQuery if possible
+    function triggerSimpleCustomEvent(el, eventName) {
+    	if (jq) {
+    		jq(el).trigger(eventName);
+    	} else {
+    		var event = document.createEvent('CustomEvent');
+    		event.initCustomEvent(eventName, true, true, {});
+    		el.dispatchEvent(event);
+    	}
+    }
+    
+    // el.classList not supported by < IE10
+    // use jQuery if available
+    function hasClass(el, className) {
+    	if (jq) {
+    		return jq(el).hasClass(className);
+    	} else {
+    		return el.classList.contains(className);
+    	}
+    }
+    
+    function Datepair(container, options) {
+    	this.dateDelta = null;
+    	this.timeDelta = null;
+    	this._defaults =	{
+    		startClass: 'start',
+    		endClass: 'end',
+    		timeClass: 'time',
+    		dateClass: 'date',
+    		defaultDateDelta: 0,
+    		defaultTimeDelta: 3600000,
+    
+    		// defaults for jquery-timepicker; override when using other input widgets
+    		parseTime: function(input){
+    			return jq(input).timepicker('getTime');
+    		},
+    		updateTime: function(input, dateObj){
+    			jq(input).timepicker('setTime', dateObj);
+    		},
+    		setMinTime: function(input, dateObj){
+    			jq(input).timepicker('option', 'minTime', dateObj);
+    		},
+    
+    		// defaults for bootstrap datepicker; override when using other input widgets
+    		parseDate: function(input){
+    			return jq(input).datepicker('getDate');
+    		},
+    		updateDate: function(input, dateObj){
+    			jq(input).datepicker('update', dateObj);
+    		}
+    	};
+    
+    	this.container = container;
+    	this.settings = simpleExtend(this._defaults, options);
+    
+    	this.startDateInput = this.container.querySelector('.'+this.settings.startClass+'.'+this.settings.dateClass);
+    	this.endDateInput = this.container.querySelector('.'+this.settings.endClass+'.'+this.settings.dateClass);
+    	this.startTimeInput = this.container.querySelector('.'+this.settings.startClass+'.'+this.settings.timeClass);
+    	this.endTimeInput = this.container.querySelector('.'+this.settings.endClass+'.'+this.settings.timeClass);
+    
+    	// init starts here
+    	this._bindChangeHandler();
+    }
+    
+    Datepair.prototype = {
+    	constructor: Datepair,
+    
+    	_bindChangeHandler: function(){
+    		// addEventListener doesn't work with synthetic "change" events
+    		// fired by jQuery's trigger() functioin. If jQuery is present,
+    		// use that for event binding
+    		if (jq) {
+    			jq(this.container).on('change.datepair', jq.proxy(this.handleEvent, this));
+    		} else {
+    			this.container.addEventListener('change', this, false);
+    		}
+    	},
+    
+    	_unbindChangeHandler: function(){
+    		if (jq) {
+    			jq(this.container).off('change.datepair');
+    		} else {
+    			this.container.removeEventListener('change', this, false);
+    		}
+    	},
+    
+    	// This function will be called when passing 'this' to addEventListener
+    	handleEvent: function(e){
+    		// temporarily unbind the change handler to prevent triggering this
+    		// if we update other inputs
+    		this._unbindChangeHandler();
+    
+    		if (hasClass(e.target, this.settings.dateClass)) {
+    			if (e.target.value != '') {
+    				this._dateChanged(e.target);
+    			} else {
+    				this.dateDelta = null;
+    			}
+    
+    		} else if (hasClass(e.target, this.settings.timeClass)) {
+    			if (e.target.value != '') {
+    				this._timeChanged(e.target);
+    			} else {
+    				this.timeDelta = null;
+    			}
+    		}
+    
+    		this._validateRanges();
+    		this._updateEndMintime()
+    		this._bindChangeHandler();
+    	},
+    
+    	_dateChanged: function(target){
+    		if (!this.startDateInput || !this.endDateInput) {
+    			return
+    		}
+    
+    		if (!this.startDateInput.value || !this.endDateInput.value) {
+    			if (this.settings.defaultDateDelta !== null) {
+    				if (this.startDateInput.value) {
+    					var startDate = this.settings.parseDate(this.startDateInput);
+    					var newEnd = new Date(startDate.getTime() + this.settings.defaultDateDelta * _ONE_DAY);
+    					this.settings.updateDate(this.endDateInput, newEnd);
+    
+    				} else if (this.endDateInput.value) {
+    					var endDate = this.settings.parseDate($endDateInput);
+    					var newStart = new Date(endDate.getTime() - this.settings.defaultDateDelta * _ONE_DAY);
+    					this.settings.updateDate(this.startDateInput, newStart);
+    				}
+    
+    				this.dateDelta = this.settings.defaultDateDelta * _ONE_DAY;
+    			} else {
+    				this.dateDelta = null;
+    			}
+    
+    			return;
+    		}
+    
+    		var startDate = this.settings.parseDate(this.startDateInput);
+    		var endDate = this.settings.parseDate(this.endDateInput);
+    
+    		if (hasClass(target, this.settings.startClass)) {
+    			var newEndDate = new Date(startDate.getTime() + this.dateDelta);
+    			this.settings.updateDate(this.endDateInput, newEndDate);
+    		} else if (hasClass(target, this.settings.endClass)) {
+    			if (endDate < startDate) {
+    				this.dateDelta = 0;
+    				this.settings.updateDate(this.startDateInput, endDate);
+    			} else {
+    				this.dateDelta = endDate.getTime() - startDate.getTime();
+    			}
+    		}
+    	},
+    
+    	_timeChanged: function(target){
+    		if (!this.startTimeInput || !this.endTimeInput) {
+    			return
+    		}
+    
+    		if (!this.startTimeInput.value || !this.endTimeInput.value) {
+    			if (this.settings.defaultTimeDelta !== null) {
+    				if (this.startTimeInput.value) {
+    					var startTime = this.settings.parseTime(this.startTimeInput);
+    					var newEnd = new Date(startTime.getTime() + this.settings.defaultTimeDelta);
+    					this.settings.updateTime(this.endTimeInput, newEnd);
+    				} else if (this.endTimeInput.value) {
+    					var endTime = this.settings.parseTime(this.endTimeInput);
+    					var newStart = new Date(endTime.getTime() - this.settings.defaultTimeDelta);
+    					this.settings.updateTime(this.startTimeInput, newStart);
+    				}
+    
+    				this.timeDelta = this.settings.defaultTimeDelta;
+    			} else {
+    				this.timeDelta = null;
+    			}
+    
+    			return;
+    		}
+    
+    		var startTime = this.settings.parseTime(this.startTimeInput);
+    		var endTime = this.settings.parseTime(this.endTimeInput);
+    
+    		if (hasClass(target, this.settings.startClass)) {
+    			var newEndTime = new Date(startTime.getTime() + this.timeDelta);
+    			this.settings.updateTime(this.endTimeInput, newEndTime);
+    			endTime = this.settings.parseTime(this.endTimeInput);
+    		}
+    
+    		if (this.endDateInput && this.endDateInput.value && this.dateDelta + this.timeDelta < _ONE_DAY && (endTime.getTime() - startTime.getTime()) * this.timeDelta < 0) {
+    			var offset = (endTime < startTime) ? _ONE_DAY : -1 * _ONE_DAY;
+    			var endDate = this.settings.parseDate(this.endDateInput);
+    			this.settings.updateDate(this.endDateInput, new Date(endDate.getTime() + offset));
+    			this._dateChanged(this.endDateInput);
+    		}
+    
+    		this.timeDelta = endTime.getTime() - startTime.getTime();
+    	},
+    
+    	_updateEndMintime: function(){
+    		if (typeof this.settings.setMinTime != 'function') return;
+    
+    		var startTime = null;
+    		if (!this.dateDelta || this.dateDelta < _ONE_DAY || (this.timeDelta && this.dateDelta + this.timeDelta < _ONE_DAY)) {
+    			startTime = this.settings.parseTime(this.startTimeInput);
+    		}
+    
+    		this.settings.setMinTime(this.endTimeInput, startTime);
+    	},
+    
+    	_validateRanges: function(){
+    		if (this.startTimeInput && this.endTimeInput && this.timeDelta === null) {
+    			triggerSimpleCustomEvent(this.container, 'rangeIncomplete');
+    			return;
+    		}
+    
+    		if (this.startDateInput && this.endDateInput && this.dateDelta === null) {
+    			triggerSimpleCustomEvent(this.container, 'rangeIncomplete');
+    			return;
+    		}
+    
+    		if (this.dateDelta + this.timeDelta >= 0) {
+    			triggerSimpleCustomEvent(this.container, 'rangeSelected');
+    		} else {
+    			triggerSimpleCustomEvent(this.container, 'rangeError');
+    		}
+    	}
+    }
+
+    window.Datepair = Datepair;
+
+}(window, document));
+
+/*!
+ * datepair.js v0.2.1 - A javascript plugin for intelligently selecting date and time ranges inspired by Google Calendar.
+ * Copyright (c) 2014 Jon Thornton - http://jonthornton.github.com/Datepair.js
+ * License: MIT
+ */
+
+(function($) {
+
+	if(!$) {
+		return;
 	}
-}(function ($) {
-	var _ONE_DAY = 86400000;
-	var _defaults =	{
-		startClass: 'start',
-		endClass: 'end',
-		timeClass: 'time',
-		dateClass: 'date',
-		defaultDateDelta: 0,
-		defaultTimeDelta: 3600000,
-		parseTime: function($input){
-			return $input.timepicker('getTime');
-		},
-		updateTime: function($input, dateObj){
-			$input.timepicker('setTime', dateObj);
-		},
-		parseDate: function($input){
-			return $input.datepicker('getDate');
-		},
-		updateDate: function($input, dateObj){
-			$input.datepicker('update', dateObj);
-		},
-		setMinTime: function($input, dateObj){
-			$input.timepicker('option', 'minTime', dateObj);
-		}
+
+	////////////
+	// Plugin //
+	////////////
+
+	$.fn.datepair = function(option) {
+		var out;
+		this.each(function() {
+			var $this = $(this);
+			var data = $this.data('datepair');
+			var options = typeof option === 'object' && option;
+
+			if (!data) {
+				data = new Datepair(this, options);
+				$this.data('datepair', data);
+			}
+
+			if (typeof option === 'string') {
+				out = data[option]();
+			}
+		});
+
+		return out;
 	};
 
-	var methods =
-	{
-		init: function(options)
-		{
-			return this.each(function()
-			{
-				var $self = $(this);
+	//////////////
+	// Data API //
+	//////////////
 
-				var settings = $.extend({}, _defaults);
+	$('[data-datepair]').each(function() {
+		var $this = $(this);
+		$this.datepair($this.data());
+	});
 
-				if (options) {
-					settings = $.extend(settings, options);
-				}
-
-				settings = _parseSettings(settings);
-
-				$self.data('datepair-settings', settings);
-				_bindChangeHandler($self);
-
-				// initialize datepair-datedelta
-				var $startDateInput = _getStartDateInput($self);
-				var $endDateInput = _getEndDateInput($self);
-
-				if ($startDateInput.val() && $endDateInput.val()) {
-					var startDate = settings.parseDate($startDateInput);
-					var endDate = settings.parseDate($endDateInput);
-					$self.data('datepair-datedelta', endDate.getTime() - startDate.getTime());
-				} else {
-					$self.data('datepair-datedelta', null);
-				}
-
-				// initialize datepair-timedelta
-				var $startTimeInput = _getStartTimeInput($self);
-				var $endTimeInput = _getEndTimeInput($self);
-
-				if ($startTimeInput.val() && $endTimeInput.val()) {
-					var startTime = settings.parseTime($startTimeInput);
-					var endTime = settings.parseTime($endTimeInput);
-					$self.data('datepair-timedelta', endTime.getTime() - startTime.getTime());
-				} else {
-					$self.data('datepair-timedelta', null);
-				}
-
-				_updateEndMintime($self);
-			});
-		},
-
-		option: function(key, value)
-		{
-			var self = this;
-			var settings = self.data('datepair-settings');
-
-			if (typeof key == 'object') {
-				settings = $.extend(settings, key);
-
-			} else if (typeof key == 'string' && typeof value != 'undefined') {
-				settings[key] = value;
-
-			} else if (typeof key == 'string') {
-				return settings[key];
-			}
-
-			settings = _parseSettings(settings);
-
-			self.data('datepair-settings', settings);
-
-			return self;
-		},
-
-		remove: function()
-		{
-			var $self = this;
-			$self.removeData('datepair-settings');
-			_unbindChangeHandler($self)
-
-			return $self;
-		}
-	};
-
-	// private methods
-
-	function _parseSettings(settings)
-	{
-		// if (settings.startClass) {
-		// 	settings.minTime = _time2int(settings.minTime);
-		// }
-
-		return settings;
-	}
-
-	function _bindChangeHandler($self)
-	{
-		$self.on('change.datepair', null, _inputChanged);
-	}
-
-	function _unbindChangeHandler($self)
-	{
-		$self.off('change.datepair');
-	}
-
-	function _inputChanged(e)
-	{
-		var $self = $(this);
-
-		// temporarily unbind the change handler to prevent triggering this
-		// if we update other inputs
-		_unbindChangeHandler($self);
-
-		var settings = $self.data('datepair-settings');
-		var $target = $(e.target);
-
-		if ($target.hasClass(settings.dateClass)) {
-			if ($target.val() != '') {
-				_dateChanged($self, $target);
-			} else {
-				$self.data('datepair-datedelta', null);
-			}
-
-		} else if ($target.hasClass(settings.timeClass)) {
-			if ($target.val() != '') {
-				_timeChanged($self, $target);
-			} else {
-				$self.data('datepair-timedelta', null);
-			}
-		}
-
-		_validateRanges($self);
-		_updateEndMintime($self)
-		_bindChangeHandler($self);
-	}
-
-	function _getStartDateInput($self)
-	{
-		var settings = $self.data('datepair-settings');
-		return $self.find('.'+settings.startClass+'.'+settings.dateClass);
-	}
-
-	function _getEndDateInput($self)
-	{
-		var settings = $self.data('datepair-settings');
-		return $self.find('.'+settings.endClass+'.'+settings.dateClass);
-	}
-
-	function _getStartTimeInput($self)
-	{
-		var settings = $self.data('datepair-settings');
-		return $self.find('.'+settings.startClass+'.'+settings.timeClass);
-	}
-
-	function _getEndTimeInput($self)
-	{
-		var settings = $self.data('datepair-settings');
-		return $self.find('.'+settings.endClass+'.'+settings.timeClass);
-	}
-
-	function _dateChanged($self, $target)
-	{
-		var settings = $self.data('datepair-settings');
-
-		var $startDateInput = _getStartDateInput($self);
-		var $endDateInput = _getEndDateInput($self);
-
-		if (!$startDateInput.val() || !$endDateInput.val()) {
-			if (settings.defaultDateDelta !== null) {
-				if ($startDateInput.val()) {
-					var startDate = settings.parseDate($startDateInput);
-					var newEnd = new Date(startDate.getTime() + settings.defaultDateDelta * _ONE_DAY);
-					settings.updateDate($endDateInput, newEnd);
-				} else if ($endDateInput.val()) {
-					var endDate = settings.parseDate($endDateInput);
-					var newStart = new Date(endDate.getTime() - settings.defaultDateDelta * _ONE_DAY);
-					settings.updateDate($startDateInput, newStart);
-				}
-
-				$self.data('datepair-datedelta', settings.defaultDateDelta * _ONE_DAY);
-			} else {
-				$self.data('datepair-datedelta', null);
-			}
-
-			return;
-		}
-
-		var startDate = settings.parseDate($startDateInput);
-		var endDate = settings.parseDate($endDateInput);
-
-		if ($target.hasClass(settings.startClass)) {
-			var newEndDate = new Date(startDate.getTime()+$self.data('datepair-datedelta'));
-			settings.updateDate($endDateInput, newEndDate);
-		} else if ($target.hasClass(settings.endClass)) {
-			if (endDate < startDate) {
-				$self.data('datepair-datedelta', 0);
-				settings.updateDate($startDateInput, endDate);
-			} else {
-				$self.data('datepair-datedelta', endDate.getTime() - startDate.getTime());
-			}
-		}
-	}
-
-	function _updateEndMintime($self)
-	{
-		var settings = $self.data('datepair-settings');
-		if (typeof settings.setMinTime != 'function') return;
-
-		var startTime;
-		if ($self.data('datepair-datedelta') <= _ONE_DAY || !$self.data('datepair-datedelta')) {
-			var $startTimeInput = _getStartTimeInput($self);
-			var startTime = settings.parseTime($startTimeInput);
-		}
-
-		var $endTimeInput = _getEndTimeInput($self);
-		settings.setMinTime($endTimeInput, startTime);
-	}
-
-	function _timeChanged($self, $target)
-	{
-		var settings = $self.data('datepair-settings');
-
-		var $startTimeInput = _getStartTimeInput($self);
-		var $endTimeInput = _getEndTimeInput($self);
-
-		if (!$startTimeInput.val() || !$endTimeInput.val()) {
-			if (settings.defaultTimeDelta !== null) {
-				if ($startTimeInput.val()) {
-					var startTime = settings.parseTime($startTimeInput);
-					var newEnd = new Date(startTime.getTime() + settings.defaultTimeDelta);
-					settings.updateTime($endTimeInput, newEnd);
-				} else if ($endTimeInput.val()) {
-					var endTime = settings.parseTime($endTimeInput);
-					var newStart = new Date(endTime.getTime() - settings.defaultTimeDelta);
-					settings.updateTime($startTimeInput, newStart);
-				}
-
-				$self.data('datepair-timedelta', settings.defaultTimeDelta);
-			} else {
-				$self.data('datepair-timedelta', null);
-			}
-
-			return;
-		}
-
-		var startTime = settings.parseTime($startTimeInput);
-		var endTime = settings.parseTime($endTimeInput);
-
-		if ($target.hasClass(settings.startClass)) {
-			var newEndTime = new Date(startTime.getTime()+$self.data('datepair-timedelta'));
-			settings.updateTime($endTimeInput, newEndTime);
-			endTime = settings.parseTime($endTimeInput);
-		}
-
-		if ((endTime.getTime() - startTime.getTime()) * $self.data('datepair-timedelta') < 0) {
-			var $endDateInput = _getEndDateInput($self);
-			if ($endDateInput.val()) {
-				var offset = (endTime < startTime) ? _ONE_DAY : -1 * _ONE_DAY;
-				var endDate = settings.parseDate($endDateInput);
-				settings.updateDate($endDateInput, new Date(endDate.getTime() + offset));
-				_dateChanged($self, $endDateInput);
-			}
-		}
-
-		$self.data('datepair-timedelta', endTime.getTime() - startTime.getTime());
-	}
-
-	function _validateRanges($self)
-	{
-		var $startTimeInput = _getStartTimeInput($self);
-		var $endTimeInput = _getEndTimeInput($self);
-
-		if ($startTimeInput.length && $endTimeInput.length && $self.data('datepair-timedelta') === null) {
-			$self.trigger('rangeIncomplete');
-			return;
-		}
-
-		var $startDateInput = _getStartDateInput($self);
-		var $endDateInput = _getEndDateInput($self);
-		if ($startDateInput.length && $endDateInput.length && $self.data('datepair-datedelta') === null) {
-			$self.trigger('rangeIncomplete');
-			return;
-		}
-
-		if ($self.data('datepair-datedelta') + $self.data('datepair-timedelta') >= 0) {
-			$self.trigger('rangeSelected');
-		} else {
-			$self.trigger('rangeError');
-		}
-	}
-
-
-	// Plugin entry
-	$.fn.datepair = function(method)
-	{
-		if(methods[method]) { return methods[method].apply(this, Array.prototype.slice.call(arguments, 1)); }
-		else if(typeof method === "object" || !method) { return methods.init.apply(this, arguments); }
-		else { $.error("Method "+ method + " does not exist on jQuery.datepair"); }
-	};
-}));
+}(window.Zepto || window.jQuery));
