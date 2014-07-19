@@ -1,7 +1,7 @@
 module Jquery
   module Timepicker
     module Rails
-      VERSION = '1.3.9'
+      VERSION = '1.4.3'
     end
   end
 end
