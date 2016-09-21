@@ -1,8 +1,8 @@
 # jQuery timepicker for Rails
 [![Gem Version](https://badge.fury.io/rb/jquery-timepicker-rails.png)](http://badge.fury.io/rb/jquery-timepicker-rails)
 
-jquery-timepicker packaged for the Rails 3.1+ asset pipeline.
-Check [jquery-timepicker project home page](http://github.com/jonthornton/jquery-timepicker).
+jquery-timepicker and Datepair.js packaged for the Rails 3.1+ asset pipeline.
+See the [jquery-timepicker project home page](http://github.com/jonthornton/jquery-timepicker) and the [Datepair.js home page](https://github.com/jonthornton/Datepair.js).
 
 ## Installation
 
@@ -28,13 +28,13 @@ Add the following stylesheet file to `app/assets/stylesheets/application.css`:
 
     *= require jquery.timepicker.css
 
-Optionally, you can also use `jquery.datepair.js`:
+You can also include `Datepair.js`, and optionally it's accompanying jquery plugin, `jquery.datepair.js`:
 
+    //= require Datepair
     //= require jquery.datepair.js
 
-Most people will prefer to copy-paste this file in order to customize it.
-
-jquery-timepicker depends on jQuery and [bootstrap-datepicker](http://github.com/eternicode/bootstrap-datepicker) or [jQuery UI Datepicker](http://jqueryui.com/demos/datepicker/).
+Datepair.js depends on [bootstrap-datepicker](http://github.com/eternicode/bootstrap-datepicker) or [jQuery UI Datepicker](http://jqueryui.com/demos/datepicker/).
+jquery-timepicker depends on `jQuery`.
 
 ## License
 
