@@ -1,3 +1,9 @@
+/*!
+ * datepair.js v0.4.15 - A javascript plugin for intelligently selecting date and time ranges inspired by Google Calendar.
+ * Copyright (c) 2016 Jon Thornton - http://jonthornton.github.com/Datepair.js
+ * License: MIT
+ */
+
 (function($) {
 
 	if(!$) {
@@ -18,6 +24,11 @@
 			if (!data) {
 				data = new Datepair(this, options);
 				$this.data('datepair', data);
+			}
+
+			if (option === 'remove') {
+				out = data['remove']();
+				$this.removeData('datepair', data);
 			}
 
 			if (typeof option === 'string') {
